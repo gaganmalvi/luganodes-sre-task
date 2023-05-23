@@ -5,13 +5,13 @@ networks:
     driver: bridge
   
 volumes:
-  prometheus_data: {}
-  grafana_data: {}
+  prometheus_data: 
+  grafana_data: 
 
 services:
-  grafana:
+  grafana_uno:
     image: grafana/grafana-enterprise:latest
-    container_name: grafana
+    container_name: grafana_uno
     restart: unless-stopped
     volumes:
       - grafana_data:/var/lib/grafana
@@ -44,6 +44,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./rules.yml:/etc/prometheus/rules.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -51,7 +52,22 @@ services:
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.enable-remote-write-receiver'
     ports:
       - 9090:9090
+    networks:
+      - monitoring
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: alertmanager
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    ports:
+      - 9093:9093
     networks:
       - monitoring
