@@ -5,10 +5,23 @@ networks:
     driver: bridge
   
 volumes:
-  prometheus_data: 
   grafana_data: 
+  minio-data:
+  mimir-1-data:
+  mimir-2-data:
+  mimir-3-data:
 
 services:
+  minio:
+    image: minio/minio:latest
+    entrypoint: [""]
+    command: ["sh", "-c", "mkdir -p /data/mimir && minio server --quiet /data"]
+    environment:
+      - MINIO_ROOT_USER=mimir
+      - MINIO_ROOT_PASSWORD=mimir123
+    volumes:
+      - minio-data:/data
+
   grafana_uno:
     image: grafana/grafana-enterprise:latest
     container_name: grafana_uno
@@ -16,25 +29,7 @@ services:
     volumes:
       - grafana_data:/var/lib/grafana
     ports:
-      - 3000:3000
-    networks:
-      - monitoring
-
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: node-exporter
-    restart: unless-stopped
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    ports:
-      - 9100:9100
+      - 9000:3000
     networks:
       - monitoring
     
@@ -45,7 +40,6 @@ services:
     volumes:
       - ./cfg/prometheus.yml:/etc/prometheus/prometheus.yml
       - ./cfg/rules.yml:/etc/prometheus/rules.yml
-      - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -53,21 +47,51 @@ services:
       - '--web.console.templates=/usr/share/prometheus/consoles'
       - '--web.enable-lifecycle'
       - '--web.enable-remote-write-receiver'
-    ports:
-      - 9090:9090
-    networks:
-      - monitoring
+    depends_on:
+      - "mimir-1"
+      - "mimir-2"
+      - "mimir-3"
 
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: alertmanager
-    restart: unless-stopped
+  load-balancer:
+    image: nginx:latest
     volumes:
-      - ./cfg/alertmanager.yml:/etc/alertmanager/alertmanager.yml
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
+      - ./cfg/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - "mimir-1"
+      - "mimir-2"
+      - "mimir-3"
     ports:
-      - 9093:9093
-    networks:
-      - monitoring
+      - 9009:9009 
+
+  mimir-1:
+    image: grafana/mimir:latest
+    command: ["--config.file=/etc/mimir.yml"]
+    hostname: mimir-1
+    volumes:
+      - ./cfg/alertmanager-fallback.yml:/etc/alertmanager-fallback.yml
+      - ./cfg/mimir.yml:/etc/mimir.yml
+      - mimir-1-data:/data
+    depends_on:
+      - "minio" 
+
+  mimir-2:
+    image: grafana/mimir:latest
+    command: ["--config.file=/etc/mimir.yml"]
+    hostname: mimir-2
+    volumes:
+      - ./cfg/alertmanager-fallback.yml:/etc/alertmanager-fallback.yml
+      - ./cfg/mimir.yml:/etc/mimir.yml
+      - mimir-2-data:/data
+    depends_on:
+      - "minio" 
+
+  mimir-3:
+    image: grafana/mimir:latest
+    command: ["--config.file=/etc/mimir.yml"]
+    hostname: mimir-3
+    volumes:
+      - ./cfg/alertmanager-fallback.yml:/etc/alertmanager-fallback.yml
+      - ./cfg/mimir.yml:/etc/mimir.yml
+      - mimir-3-data:/data
+    depends_on:
+      - "minio"
