@@ -1,11 +1,22 @@
 groups:
-- name: test
-  rules:
-    - alert: Test
-      expr: vector(1)
-      for: 1m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Test alert"
-        description: "This is a test alert."
+  - name: test
+    rules:
+      - alert: Test
+        expr: vector(1)
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Test alert"
+          description: "This is a test alert."
+  
+  - name: InstanceUp
+    rules:
+      - alert: InstanceUp
+        expr: up != 0
+        for: 1m
+        labels:
+          severity: moderate
+        annotations:
+          summary: "Instance {{ $labels.instance }} is up"
+          description: "Instance {{ $labels.instance }} is up."
